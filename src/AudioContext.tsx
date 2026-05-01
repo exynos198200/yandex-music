@@ -98,11 +98,14 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     try {
       setCurrentTrack(track);
       const res = await fetch(`http://127.0.0.1:3000/api/stream/${track.id}/${track.album_id}`);
-      const { url } = await res.json();
+      const data = await res.json();
+      const url = data.url;
       
-      audioRef.current.src = url;
-      audioRef.current.play();
-      setIsPlaying(true);
+      if (audioRef.current) {
+        audioRef.current.src = url;
+        audioRef.current.play();
+        setIsPlaying(true);
+      }
     } catch (error) {
       console.error("Failed to play track:", error);
     }
