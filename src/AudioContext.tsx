@@ -97,7 +97,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     
     try {
       setCurrentTrack(track);
-      const res = await fetch(`/api/stream/${track.id}/${track.album_id}`);
+      const res = await fetch(`http://127.0.0.1:3000/api/stream/${track.id}/${track.album_id}`);
       const { url } = await res.json();
       
       audioRef.current.src = url;

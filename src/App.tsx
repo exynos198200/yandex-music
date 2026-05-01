@@ -159,8 +159,8 @@ const MainView = () => {
     e.preventDefault();
     if (!search) return;
     setLoading(true);
-    try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(search)}`);
+    try
+const res = await fetch(`http://127.0.0.1:3000/api/search?q=${encodeURIComponent(search)}`);
       const data = await res.json();
       setResults(Array.isArray(data) ? data : []);
     } catch (error) {
