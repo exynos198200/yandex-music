@@ -162,7 +162,7 @@ const MainView = () => {
     setLoading(true);
     try {
       const baseUrl = 'https://server-for-yandex-music.onrender.com';
-      const endpoint = `/api/search?q=${encodeURIComponent(search)}`;
+      const endpoint = `/search?q=${encodeURIComponent(search)}`;
       let res;
       try {
         res = await fetch(`${baseUrl}${endpoint}`);

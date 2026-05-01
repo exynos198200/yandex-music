@@ -95,7 +95,7 @@ export const AudioProvider = ({ children }: { children: React.ReactNode }) => {
       setCurrentTrack(track);
       
       const baseUrl = 'https://server-for-yandex-music.onrender.com';
-      const endpoint = `/api/stream/${track.id}/${track.album_id}`;
+      const endpoint = `/stream/${track.id}/${track.album_id}`;
       
       let res;
       try {
