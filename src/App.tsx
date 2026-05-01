@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   Search, 
   Heart, 
@@ -13,9 +13,7 @@ import {
   SkipForward, 
   Download, 
   Volume2, 
-  Music, 
   ChevronDown,
-  LayoutGrid,
   Menu
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -36,6 +34,7 @@ const MinimalPlayer = () => {
   if (!currentTrack) return null;
 
   const formatTime = (seconds: number) => {
+    if (!seconds) return '0:00';
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -43,10 +42,9 @@ const MinimalPlayer = () => {
 
   return (
     <>
-      {/* Mini Player */}
       <motion.div 
         layout
-        className="fixed bottom-0 left-0 right-0 bg-[#1C1B1F] border-t border-white/5 p-3 z-50 flex items-center gap-4 safe-area-bottom"
+        className="fixed bottom-0 left-0 right-0 bg-[#1C1B1F] border-t border-white/5 p-3 z-50 flex items-center gap-4"
         onClick={() => setIsExpanded(true)}
       >
         <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-zinc-800">
@@ -63,7 +61,6 @@ const MinimalPlayer = () => {
         </div>
       </motion.div>
 
-      {/* Full Player Overlay */}
       <AnimatePresence>
         {isExpanded && (
           <motion.div 
@@ -81,12 +78,9 @@ const MinimalPlayer = () => {
             </button>
 
             <div className="flex-grow flex flex-col items-center justify-center mt-8">
-              <motion.div 
-                layoutId="cover"
-                className="w-full aspect-square max-w-[320px] rounded-[32px] overflow-hidden shadow-2xl mb-12 bg-zinc-800"
-              >
+              <div className="w-full aspect-square max-w-[320px] rounded-[32px] overflow-hidden shadow-2xl mb-12 bg-zinc-800">
                 <img src={currentTrack.cover} alt={currentTrack.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-              </motion.div>
+              </div>
 
               <div className="w-full max-w-[320px] mb-8">
                 <h1 className="text-2xl font-bold text-white mb-1">{currentTrack.title}</h1>
@@ -160,7 +154,14 @@ const MainView = () => {
     if (!search) return;
     setLoading(true);
     try {
-      const res = await fetch(`http://127.0.0.1:3000/api/search?q=${encodeURIComponent(search)}`);
+      const baseUrl = 'http://127.0.0.1:3000';
+      const endpoint = `/api/search?q=${encodeURIComponent(search)}`;
+      let res;
+      try {
+        res = await fetch(`${baseUrl}${endpoint}`);
+      } catch (e) {
+        res = await fetch(endpoint);
+      }
       const data = await res.json();
       setResults(Array.isArray(data) ? data : []);
     } catch (error) {
@@ -177,7 +178,6 @@ const MainView = () => {
 
   return (
     <div className="min-h-screen bg-[#1C1B1F] text-[#E6E1E5] pb-32">
-      {/* Header */}
       <header className="p-6 pt-12 space-y-6">
         <div className="flex items-center justify-between">
           <Menu className="w-6 h-6 text-[#E6E1E5]" />
@@ -200,7 +200,6 @@ const MainView = () => {
         </form>
       </header>
 
-      {/* Results */}
       <div className="px-6 space-y-4">
         {loading ? (
           <div className="flex justify-center py-12">

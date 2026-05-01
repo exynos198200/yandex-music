@@ -17,7 +17,7 @@ interface AudioContextType {
   playTrack: (track: Track) => void;
   togglePlay: () => void;
   seek: (time: number) => void;
-  setVolume: (volume: number) => void;
+  setVolume: (value: number) => void;
   next: () => void;
   prev: () => void;
   queue: Track[];
@@ -26,88 +26,85 @@ interface AudioContextType {
 
 const AudioContext = createContext<AudioContextType | undefined>(undefined);
 
-export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AudioProvider = ({ children }: { children: React.ReactNode }) => {
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [volume, setVolumeState] = useState(0.8);
+  const [volume, setVolumeState] = useState(1);
   const [queue, setQueue] = useState<Track[]>([]);
-  const [eqBands, setEqBands] = useState([0, 0, 0, 0, 0]); // 5 bands: 60, 230, 910, 3600, 14000 Hz
-
+  
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const filtersRef = useRef<BiquadFilterNode[]>([]);
-  const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
 
   useEffect(() => {
-    audioRef.current = new Audio();
-    audioRef.current.crossOrigin = "anonymous";
+    const audio = new Audio();
+    // Мы убираем crossOrigin, так как он может блокировать HTTP-стримы в WebView без CORS-заголовков
+    audioRef.current = audio;
     
-    audioRef.current.addEventListener('timeupdate', () => {
-      setProgress(audioRef.current?.currentTime || 0);
-    });
+    const updateProgress = () => setProgress(audio.currentTime);
+    const updateDuration = () => setDuration(audio.duration);
+    const handleEnded = () => next();
+    const handlePlay = () => setIsPlaying(true);
+    const handlePause = () => setIsPlaying(false);
+    const handleError = (e: any) => {
+      console.error("Audio error:", e);
+      setIsPlaying(false);
+    };
 
-    audioRef.current.addEventListener('loadedmetadata', () => {
-      setDuration(audioRef.current?.duration || 0);
-    });
-
-    audioRef.current.addEventListener('ended', () => {
-      next();
-    });
+    audio.addEventListener('timeupdate', updateProgress);
+    audio.addEventListener('loadedmetadata', updateDuration);
+    audio.addEventListener('durationchange', updateDuration);
+    audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('play', handlePlay);
+    audio.addEventListener('pause', handlePause);
+    audio.addEventListener('error', handleError);
 
     return () => {
-      audioRef.current?.pause();
+      audio.removeEventListener('timeupdate', updateProgress);
+      audio.removeEventListener('loadedmetadata', updateDuration);
+      audio.removeEventListener('durationchange', updateDuration);
+      audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('pause', handlePause);
+      audio.removeEventListener('error', handleError);
+      audio.pause();
       audioRef.current = null;
     };
   }, []);
-
-  const initAudioContext = () => {
-    if (!audioContextRef.current && audioRef.current) {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      const ctx = new AudioCtx();
-      audioContextRef.current = ctx;
-
-      const freqs = [60, 230, 910, 3600, 14000];
-      const filters = freqs.map(freq => {
-        const filter = ctx.createBiquadFilter();
-        filter.type = 'peaking';
-        filter.frequency.value = freq;
-        filter.Q.value = 1;
-        filter.gain.value = 0;
-        return filter;
-      });
-
-      filtersRef.current = filters;
-      const source = ctx.createMediaElementSource(audioRef.current);
-      sourceRef.current = source;
-
-      // Connect filters in series
-      let lastNode: AudioNode = source;
-      filters.forEach(filter => {
-        lastNode.connect(filter);
-        lastNode = filter;
-      });
-      lastNode.connect(ctx.destination);
-    }
-  };
 
   const playTrack = async (track: Track) => {
     if (!audioRef.current) return;
     
     try {
       setCurrentTrack(track);
-      const res = await fetch(`http://127.0.0.1:3000/api/stream/${track.id}/${track.album_id}`);
+      
+      // Формируем URL для запроса стрима
+      const baseUrl = 'http://127.0.0.1:3000';
+      const endpoint = `/api/stream/${track.id}/${track.album_id}`;
+      
+      let res;
+      try {
+        res = await fetch(`${baseUrl}${endpoint}`);
+      } catch (e) {
+        // Если 127.0.0.1:3000 недоступен прямо, пробуем относительный путь
+        res = await fetch(endpoint);
+      }
+
       const data = await res.json();
       const url = data.url;
       
-      if (audioRef.current) {
+      if (audioRef.current && url) {
         audioRef.current.src = url;
-        audioRef.current.play();
-        setIsPlaying(true);
+        audioRef.current.load(); // Обязательно для некоторых версий Android
+        const playPromise = audioRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(error => {
+            console.error("Playback failed:", error);
+          });
+        }
       }
     } catch (error) {
-      console.error("Failed to play track:", error);
+      console.error("Failed to fetch stream URL:", error);
     }
   };
 
@@ -116,14 +113,14 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (isPlaying) {
       audioRef.current.pause();
     } else {
-      audioRef.current.play();
+      audioRef.current.play().catch(console.error);
     }
-    setIsPlaying(!isPlaying);
   };
 
   const seek = (time: number) => {
     if (audioRef.current) {
       audioRef.current.currentTime = time;
+      setProgress(time);
     }
   };
 
@@ -135,8 +132,8 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const next = () => {
-    if (queue.length > 0) {
-      const index = queue.findIndex(t => t.id === currentTrack?.id);
+    if (queue.length > 0 && currentTrack) {
+      const index = queue.findIndex(t => t.id === currentTrack.id);
       if (index !== -1 && index < queue.length - 1) {
         playTrack(queue[index + 1]);
       } else {
@@ -146,20 +143,11 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const prev = () => {
-    if (queue.length > 0) {
-      const index = queue.findIndex(t => t.id === currentTrack?.id);
+    if (queue.length > 0 && currentTrack) {
+      const index = queue.findIndex(t => t.id === currentTrack.id);
       if (index > 0) {
         playTrack(queue[index - 1]);
       }
-    }
-  };
-
-  const setEqBand = (index: number, value: number) => {
-    const newBands = [...eqBands];
-    newBands[index] = value;
-    setEqBands(newBands);
-    if (filtersRef.current[index]) {
-      filtersRef.current[index].gain.value = value;
     }
   };
 
@@ -175,6 +163,6 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
 export const useAudio = () => {
   const context = useContext(AudioContext);
-  if (!context) throw new Error('useAudio must be used within AudioProvider');
+  if (!context) throw new Error("useAudio must be used within AudioProvider");
   return context;
 };
