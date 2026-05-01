@@ -1,0 +1,6 @@
+{
+  "name": "Yandex Music Stream",
+  "description": "Minimalist music streaming app with equalizer, downloads, and Yandex Music integration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
