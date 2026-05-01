@@ -184,7 +184,7 @@ const MainView = () => {
     setLoading(true);
     try {
       // Прямой вызов через прокси
-      const res = await fetch(`/api/playlist/import?url=${encodeURIComponent(importUrl)}`);
+      const res = await fetch(`https://server-for-yandex-music.onrender.com/playlist?url=${encodeURIComponent(importUrl)}`);
       const data = await res.json();
       if (Array.isArray(data)) {
         setResults(data);
