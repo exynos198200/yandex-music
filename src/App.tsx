@@ -161,7 +161,7 @@ const MainView = () => {
     if (!search) return;
     setLoading(true);
     try {
-      const baseUrl = 'http://127.0.0.1:3000';
+      const baseUrl = 'https://server-for-yandex-music.onrender.com';
       const endpoint = `/api/search?q=${encodeURIComponent(search)}`;
       let res;
       try {
