@@ -40,6 +40,19 @@ async function startServer() {
     }
   });
 
+  app.get('/api/playlist/import', async (req, res) => {
+    const { url } = req.query;
+    try {
+      // Logic to fetch tracks from a public Yandex playlist URL
+      // For now, redirecting to local server which might have this endpoint
+      // Adjust if local server uses different endpoint like /playlist?url=...
+      const response = await axios.get(`${LOCAL_API_URL}/playlist`, { params: { url } });
+      res.json(response.data); 
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to import playlist' });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
