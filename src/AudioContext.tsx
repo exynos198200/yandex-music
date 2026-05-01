@@ -25,8 +25,6 @@ interface AudioContextType {
   prev: () => void;
   queue: Track[];
   setQueue: (tracks: Track[]) => void;
-  eqBands: number[];
-  setEqBand: (index: number, value: number) => void;
 }
 
 const AudioContext = createContext<AudioContextType | undefined>(undefined);
@@ -42,49 +40,16 @@ export const AudioProvider = ({ children }: { children: React.ReactNode }) => {
     const saved = localStorage.getItem('likedTracks');
     return saved ? JSON.parse(saved) : [];
   });
-  const [eqBands, setEqBands] = useState<number[]>([0, 0, 0, 0, 0]);
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const filtersRef = useRef<BiquadFilterNode[]>([]);
-  const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
 
   useEffect(() => {
     localStorage.setItem('likedTracks', JSON.stringify(likedTracks));
   }, [likedTracks]);
 
-  const initAudioCtx = () => {
-    if (audioContextRef.current || !audioRef.current) return;
-    
-    // @ts-ignore
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    const ctx = new AudioCtx();
-    audioContextRef.current = ctx;
-
-    const frequencies = [60, 230, 910, 3600, 14000];
-    const filters = frequencies.map((freq) => {
-      const filter = ctx.createBiquadFilter();
-      filter.type = 'peaking';
-      filter.frequency.value = freq;
-      filter.Q.value = 1;
-      filter.gain.value = 0;
-      return filter;
-    });
-    filtersRef.current = filters;
-
-    const source = ctx.createMediaElementSource(audioRef.current);
-    sourceRef.current = source;
-    
-    let lastNode: any = source;
-    filters.forEach(filter => {
-      lastNode.connect(filter);
-      lastNode = filter;
-    });
-    lastNode.connect(ctx.destination);
-  };
-
   useEffect(() => {
     const audio = new Audio();
+    // Мы не используем crossOrigin, если это вызывает проблемы с локальными mp3
     audioRef.current = audio;
     
     const updateProgress = () => setProgress(audio.currentTime);
@@ -95,6 +60,7 @@ export const AudioProvider = ({ children }: { children: React.ReactNode }) => {
 
     audio.addEventListener('timeupdate', updateProgress);
     audio.addEventListener('loadedmetadata', updateDuration);
+    audio.addEventListener('durationchange', updateDuration);
     audio.addEventListener('ended', handleEnded);
     audio.addEventListener('play', handlePlay);
     audio.addEventListener('pause', handlePause);
@@ -102,21 +68,14 @@ export const AudioProvider = ({ children }: { children: React.ReactNode }) => {
     return () => {
       audio.removeEventListener('timeupdate', updateProgress);
       audio.removeEventListener('loadedmetadata', updateDuration);
+      audio.removeEventListener('durationchange', updateDuration);
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('play', handlePlay);
       audio.removeEventListener('pause', handlePause);
       audio.pause();
+      audioRef.current = null;
     };
   }, []);
-
-  const setEqBand = (index: number, value: number) => {
-    const newBands = [...eqBands];
-    newBands[index] = value;
-    setEqBands(newBands);
-    if (filtersRef.current[index]) {
-      filtersRef.current[index].gain.value = value;
-    }
-  };
 
   const isLiked = (trackId: string) => likedTracks.some(t => t.id === trackId);
 
@@ -131,13 +90,10 @@ export const AudioProvider = ({ children }: { children: React.ReactNode }) => {
 
   const playTrack = async (track: Track) => {
     if (!audioRef.current) return;
-    initAudioCtx();
-    if (audioContextRef.current?.state === 'suspended') {
-      audioContextRef.current.resume();
-    }
     
     try {
       setCurrentTrack(track);
+      
       const baseUrl = 'http://127.0.0.1:3000';
       const endpoint = `/api/stream/${track.id}/${track.album_id}`;
       
@@ -154,7 +110,9 @@ export const AudioProvider = ({ children }: { children: React.ReactNode }) => {
       if (audioRef.current && url) {
         audioRef.current.src = url;
         audioRef.current.load();
-        audioRef.current.play().catch(console.error);
+        audioRef.current.play().catch(error => {
+          console.error("Playback failed:", error);
+        });
       }
     } catch (error) {
       console.error("Failed to play track:", error);
@@ -207,8 +165,7 @@ export const AudioProvider = ({ children }: { children: React.ReactNode }) => {
   return (
     <AudioContext.Provider value={{
       currentTrack, isPlaying, progress, duration, volume, likedTracks, toggleLike, isLiked,
-      playTrack, togglePlay, seek, setVolume, next, prev, queue, setQueue,
-      eqBands, setEqBand
+      playTrack, togglePlay, seek, setVolume, next, prev, queue, setQueue
     }}>
       {children}
     </AudioContext.Provider>

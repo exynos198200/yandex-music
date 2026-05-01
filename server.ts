@@ -43,13 +43,16 @@ async function startServer() {
   app.get('/api/playlist/import', async (req, res) => {
     const { url } = req.query;
     try {
-      // Logic to fetch tracks from a public Yandex playlist URL
-      // For now, redirecting to local server which might have this endpoint
-      // Adjust if local server uses different endpoint like /playlist?url=...
-      const response = await axios.get(`${LOCAL_API_URL}/playlist`, { params: { url } });
+      // Мы предполагаем, что на локальном сервере есть эндпоинт для работы с плейлистами
+      // Если это не так, мы можем попробовать использовать поиск с URL
+      const response = await axios.get(`${LOCAL_API_URL}/playlist`, { 
+        params: { url },
+        timeout: 10000 
+      });
       res.json(response.data); 
-    } catch (error) {
-      res.status(500).json({ error: 'Failed to import playlist' });
+    } catch (error: any) {
+      console.error("Import error:", error.message);
+      res.status(500).json({ error: 'Failed to import playlist. Make sure the local server supports /playlist endpoint.' });
     }
   });
 

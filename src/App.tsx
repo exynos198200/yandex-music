@@ -15,7 +15,6 @@ import {
   Volume2, 
   ChevronDown,
   Menu,
-  SlidersHorizontal,
   PlusCircle,
   Library,
   Music4
@@ -31,56 +30,9 @@ interface Track {
   cover: string;
 }
 
-const Equalizer = ({ onClose }: { onClose: () => void }) => {
-  const { eqBands, setEqBand } = useAudio();
-  const labels = ['60Hz', '230Hz', '910Hz', '3.6k', '14k'];
-
-  return (
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 20 }}
-      className="absolute bottom-24 left-6 right-6 bg-[#2B2930] p-6 rounded-[24px] shadow-2xl z-[110]"
-    >
-      <div className="flex justify-between items-center mb-6">
-        <h3 className="text-white font-bold text-lg">Эквалайзер</h3>
-        <button onClick={onClose} className="text-zinc-400">Закрыть</button>
-      </div>
-      <div className="flex justify-between items-end h-40 gap-4">
-        {eqBands.map((val, i) => (
-          <div key={i} className="flex flex-col items-center gap-2 flex-grow h-full">
-            <div className="h-full w-full flex items-center justify-center">
-              <input 
-                type="range" 
-                min="-12" 
-                max="12" 
-                step="1"
-                value={val}
-                onChange={(e) => setEqBand(i, parseInt(e.target.value))}
-                style={{ 
-                  writingMode: 'vertical-lr', 
-                  direction: 'rtl',
-                  width: '6px',
-                  height: '120px',
-                  appearance: 'none',
-                  background: '#49454F',
-                  borderRadius: '3px'
-                }}
-                className="accent-[#D0BCFF] cursor-pointer"
-              />
-            </div>
-            <span className="text-[10px] text-zinc-500 uppercase font-medium">{labels[i]}</span>
-          </div>
-        ))}
-      </div>
-    </motion.div>
-  );
-};
-
 const MinimalPlayer = () => {
   const { currentTrack, isPlaying, progress, duration, togglePlay, next, prev, seek, volume, setVolume, isLiked, toggleLike } = useAudio();
   const [isExpanded, setIsExpanded] = useState(false);
-  const [showEq, setShowEq] = useState(false);
 
   if (!currentTrack) return null;
 
@@ -122,23 +74,15 @@ const MinimalPlayer = () => {
             className="fixed inset-0 bg-[#1C1B1F] z-[100] p-6 flex flex-col pt-12"
           >
             <button 
-              onClick={() => { setIsExpanded(false); setShowEq(false); }}
+              onClick={() => setIsExpanded(false)}
               className="absolute top-6 left-6 text-zinc-400 hover:text-white"
             >
               <ChevronDown className="w-8 h-8" />
             </button>
 
-            <button 
-              onClick={() => setShowEq(!showEq)}
-              className="absolute top-6 right-6 text-zinc-400 hover:text-white"
-            >
-              <SlidersHorizontal className="w-6 h-6" />
-            </button>
-
             <div className="flex-grow flex flex-col items-center justify-center mt-8">
-              <div className="w-full aspect-square max-w-[320px] rounded-[32px] overflow-hidden shadow-2xl mb-12 bg-zinc-800 relative group">
+              <div className="w-full aspect-square max-w-[320px] rounded-[32px] overflow-hidden shadow-2xl mb-12 bg-zinc-800">
                 <img src={currentTrack.cover} alt={currentTrack.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"></div>
               </div>
 
               <div className="w-full max-w-[320px] mb-8">
@@ -177,10 +121,6 @@ const MinimalPlayer = () => {
               </div>
             </div>
 
-            <AnimatePresence>
-              {showEq && <Equalizer onClose={() => setShowEq(false)} />}
-            </AnimatePresence>
-
             <div className="mt-auto flex justify-between p-4 text-zinc-400">
                <div className="flex items-center gap-6">
                  <button onClick={() => toggleLike(currentTrack)}>
@@ -214,7 +154,7 @@ const MainView = () => {
   const [importUrl, setImportUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'search' | 'likes' | 'import'>('search');
-  const { playTrack, setQueue, likedTracks, isLiked, toggleLike } = useAudio();
+  const { playTrack, setQueue, likedTracks } = useAudio();
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -243,6 +183,7 @@ const MainView = () => {
     if (!importUrl) return;
     setLoading(true);
     try {
+      // Прямой вызов через прокси
       const res = await fetch(`/api/playlist/import?url=${encodeURIComponent(importUrl)}`);
       const data = await res.json();
       if (Array.isArray(data)) {
@@ -250,6 +191,12 @@ const MainView = () => {
         setQueue(data);
         setActiveTab('search');
         setSearch('Импортированный плейлист');
+      } else if (data.tracks && Array.isArray(data.tracks)) {
+        // Если прокси возвращает объект с полем tracks
+        setResults(data.tracks);
+        setQueue(data.tracks);
+        setActiveTab('search');
+        setSearch(data.title || 'Импортированный плейлист');
       }
     } catch (error) {
       console.error("Import failed:", error);
@@ -272,6 +219,18 @@ const MainView = () => {
           <div className="w-8 h-8 rounded-full bg-[#D0BCFF] flex items-center justify-center text-[#381E72] font-bold">A</div>
         </div>
 
+        <nav className="flex gap-2">
+           {['search', 'likes', 'import'].map((tab) => (
+             <button 
+               key={tab}
+               onClick={() => setActiveTab(tab as any)}
+               className={`flex-1 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all ${activeTab === tab ? 'bg-[#D0BCFF] text-[#381E72]' : 'bg-[#2B2930] text-[#CAC4D0]'}`}
+             >
+               {tab === 'search' ? 'Поиск' : tab === 'likes' ? 'Любимое' : 'Импорт'}
+             </button>
+           ))}
+        </nav>
+
         {activeTab === 'search' && (
           <form onSubmit={handleSearch} className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#CAC4D0]" />
@@ -286,15 +245,23 @@ const MainView = () => {
         )}
 
         {activeTab === 'import' && (
-          <form onSubmit={handleImport} className="relative">
-            <PlusCircle className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#D0BCFF]" />
-            <input 
-              type="text" 
-              placeholder="Ссылка на плейлист Яндекса..."
-              value={importUrl}
-              onChange={(e) => setImportUrl(e.target.value)}
-              className="w-full bg-[#2B2930] border-none rounded-2xl py-4 pl-12 pr-6 text-white placeholder-[#938F99] focus:ring-2 focus:ring-[#D0BCFF] transition-all outline-none"
-            />
+          <form onSubmit={handleImport} className="space-y-4">
+            <div className="relative">
+              <PlusCircle className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#D0BCFF]" />
+              <input 
+                type="text" 
+                placeholder="Ссылка на плейлист (URL)..."
+                value={importUrl}
+                onChange={(e) => setImportUrl(e.target.value)}
+                className="w-full bg-[#2B2930] border-none rounded-2xl py-4 pl-12 pr-6 text-white placeholder-[#938F99] focus:ring-2 focus:ring-[#D0BCFF] transition-all outline-none"
+              />
+            </div>
+            <button 
+              type="submit"
+              className="w-full bg-[#D0BCFF] text-[#381E72] font-bold py-4 rounded-2xl active:scale-95 transition-transform"
+            >
+              Импортировать
+            </button>
           </form>
         )}
       </header>
@@ -302,7 +269,7 @@ const MainView = () => {
       <div className="px-6 space-y-3">
         {activeTab === 'search' && (
           <>
-            <h2 className="text-zinc-500 font-bold uppercase text-xs tracking-widest pt-4">Результаты поиска</h2>
+            <h2 className="text-zinc-500 font-bold uppercase text-xs tracking-widest pt-4">Результаты</h2>
             {loading ? (
               <div className="flex justify-center py-12">
                 <div className="w-8 h-8 border-4 border-[#D0BCFF]/20 border-t-[#D0BCFF] rounded-full animate-spin" />
@@ -322,7 +289,7 @@ const MainView = () => {
 
         {activeTab === 'likes' && (
           <>
-            <h2 className="text-zinc-500 font-bold uppercase text-xs tracking-widest pt-4">Любимые треки ({likedTracks.length})</h2>
+            <h2 className="text-zinc-500 font-bold uppercase text-xs tracking-widest pt-4">Моя медиатека ({likedTracks.length})</h2>
             {likedTracks.length > 0 ? (
               likedTracks.map((track) => (
                 <TrackItem key={track.id} track={track} onClick={() => onTrackClick(track, likedTracks)} />
@@ -330,17 +297,11 @@ const MainView = () => {
             ) : (
               <div className="text-center py-20 text-zinc-600">
                 <Heart className="w-16 h-16 mx-auto mb-4 opacity-10" />
-                <p>Здесь пока пусто. Ставьте лайки!</p>
+                <p>Здесь будут ваши любимые треки</p>
               </div>
             )}
           </>
         )}
-      </div>
-
-      <div className="fixed bottom-0 left-0 right-0 h-20 bg-[#1C1B1F]/95 backdrop-blur-md border-t border-white/5 flex justify-around items-center px-4 z-40">
-        <TabButton active={activeTab === 'search'} icon={<Search />} label="Поиск" onClick={() => setActiveTab('search')} />
-        <TabButton active={activeTab === 'likes'} icon={<Heart />} label="Любимое" onClick={() => setActiveTab('likes')} />
-        <TabButton active={activeTab === 'import'} icon={<Library />} label="Импорт" onClick={() => setActiveTab('import')} />
       </div>
 
       <MinimalPlayer />
@@ -351,7 +312,6 @@ const MainView = () => {
 interface TrackItemProps {
   track: Track;
   onClick: () => void;
-  key?: React.Key;
 }
 
 const TrackItem = ({ track, onClick }: TrackItemProps) => {
@@ -378,15 +338,6 @@ const TrackItem = ({ track, onClick }: TrackItemProps) => {
     </motion.div>
   );
 };
-
-const TabButton = ({ active, icon, label, onClick }: any) => (
-  <button onClick={onClick} className={`flex flex-col items-center gap-1 flex-1 py-1 transition-all ${active ? 'text-[#D0BCFF]' : 'text-[#CAC4D0]'}`}>
-    <div className={`p-1 px-5 rounded-full transition-all ${active ? 'bg-[#49454F]' : ''}`}>
-      {React.cloneElement(icon, { className: "w-6 h-6" })}
-    </div>
-    <span className="text-[10px] font-bold uppercase tracking-widest">{label}</span>
-  </button>
-);
 
 export default function App() {
   return (
